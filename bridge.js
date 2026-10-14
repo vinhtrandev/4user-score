@@ -279,7 +279,7 @@
         for (let i = 0; i < numP; i++) {
             if (selAbsent.includes(i)) { eff.push(Infinity); continue; }
             const v = pl.cards[i];
-            eff.push(v == null ? Infinity : ((rules.chayOn && selChay.includes(i)) ? rules.chay : v));
+            eff.push(v == null ? Infinity : ((rules.chayOn && selChay.includes(i)) ? v + rules.chay : v));
         }
         const min = Math.min(...eff);
         const tied = eff.map((v, i) => (v === min && min !== Infinity ? i : -1)).filter((i) => i >= 0);
@@ -307,7 +307,14 @@
         }
     }
 
-    function showManual(on) { const c = document.getElementById('van-input-card'); if (c) c.style.display = on ? '' : 'none'; }
+    function showManual(on) {
+        if (typeof setInputMode === 'function') {
+            setInputMode(on ? 'manual' : 'auto');
+        } else {
+            const c = document.getElementById('van-input-card');
+            if (c) c.style.display = on ? '' : 'none';
+        }
+    }
 
     // ── Điểm vào duy nhất (extension gọi cho mỗi ván) ─────────────────────────
     async function handle(game) {
@@ -328,7 +335,7 @@
         // TỰ ĐỘNG HOÀN TOÀN: luôn bấm "Thêm ván" như người dùng (kèm âm thanh thành công/thất bại của web)
         const before = history.length;
         handleAddVan(null);
-        await sleep(500);
+        for (let i = 0; i < 15 && history.length === before; i++) await sleep(100);
         const added = history.length > before;
         if (added && pl.white) {                 // ăn trắng: tiền tính như sâm, chỉ đổi nhãn hiển thị
             const v = history[history.length - 1];

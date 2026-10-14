@@ -976,6 +976,43 @@ td { padding: 11px 10px; font-size: 14px; }
 .sb-name { font-size: 17px; }
 .sb-pts { font-size: 26px; }
 
+/* Chế độ nhập điểm: switcher giữa nhập thủ công & tự động */
+.input-mode-switcher {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 5px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+}
+.mode-switch-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    border-radius: 9px;
+    transition: all .18s ease;
+    cursor: pointer;
+}
+.mode-switch-btn:hover {
+    color: var(--text);
+    background: var(--accent-light);
+}
+.mode-switch-btn.active {
+    color: #fff;
+    background: var(--grad);
+    box-shadow: 0 4px 14px rgba(47, 107, 255, .4);
+}
+.mode-switch-btn .ms-icon { font-size: 15px; }
+
 /* Chế độ tự động: trạng thái dạng pill, mô tả ngắn */
 .auto-card { padding-bottom: 16px; }
 .auto-status { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 15px; font-weight: 700; background: var(--surface2); border: 1px solid var(--border2); border-radius: 12px; }

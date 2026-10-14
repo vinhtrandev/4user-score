@@ -17,9 +17,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,700;0,800;1,700;1,800&family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 
 <body>
@@ -44,7 +44,7 @@
     </div>
     <script>
         (function () {
-            var MIN_MS = 3500;
+            var MIN_MS = 800;
             var start = Date.now();
             var splash = document.getElementById('intro-splash');
             document.documentElement.classList.add('intro-lock');
@@ -52,7 +52,11 @@
                 if (!splash || splash.classList.contains('intro-hide')) return;
                 splash.classList.add('intro-hide');
                 document.documentElement.classList.remove('intro-lock');
-                setTimeout(function () { splash.remove(); }, 820);
+                setTimeout(function () { splash.remove(); }, 500);
+            }
+            if (splash) {
+                splash.addEventListener('click', reveal);
+                splash.title = 'Bấm để vào ngay';
             }
             function hide() {
                 var elapsed = Date.now() - start;
@@ -159,15 +163,25 @@
                 </div>
             </div>
 
+            <!-- Chọn chế độ nhập điểm: Nhập thủ công vs Tự động từ Extension -->
+            <div class="input-mode-switcher" id="input-mode-switcher">
+                <button type="button" class="mode-switch-btn active" id="btn-mode-manual" onclick="setInputMode('manual')">
+                    <span class="ms-icon">✍️</span> Nhập thủ công
+                </button>
+                <button type="button" class="mode-switch-btn" id="btn-mode-auto" onclick="setInputMode('auto')">
+                    <span class="ms-icon">🔌</span> Tự động (Extension)
+                </button>
+            </div>
+
             <!-- Chế độ tự động: ván do extension gửi sang, web tự nhập + tự lưu -->
-            <div class="card auto-card" id="fb-live-card">
+            <div class="card auto-card" id="fb-live-card" style="display:none;">
                 <div class="card-title">🔌 Chế độ tự động</div>
                 <div class="auto-status"><span class="auto-dot" aria-hidden="true"></span><span id="fb-status-main">Đang chờ ván từ extension…</span></div>
                 <p class="auto-help">Chơi bên game Facebook — ván xong, web tự nhập và lưu điểm (có âm báo).</p>
             </div>
 
-            <!-- Khối nhập tay: ẨN (giữ trong DOM vì app.js dùng các ô này để tính điểm). Chỉ hiện khi một ván tự lưu thất bại. -->
-            <div class="card" id="van-input-card" style="display:none;">
+            <!-- Khối nhập tay -->
+            <div class="card" id="van-input-card">
                 <div class="van-num-label" id="van-num">Nhập ván 1</div>
 
                 <div class="mode-tabs">

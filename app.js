@@ -41,6 +41,42 @@ let undoSnapshot = null; // last history before addVan
 // ── Auto-save session ──────────────────────────────────────────
 let currentSessionId = null; // ID của buổi đang chơi (để upsert)
 
+// ── Input mode state ───────────────────────────────────────────
+const LS_INPUT_SRC = 'xamloc_input_src';
+let currentInputMode = 'manual';
+
+// ── Helpers ────────────────────────────────────────────────────
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function roundScore(val) {
+    if (typeof val !== 'number' || isNaN(val)) return 0;
+    return Math.round(val * 100) / 100;
+}
+
+function setInputMode(m) {
+    currentInputMode = m === 'auto' ? 'auto' : 'manual';
+    try { localStorage.setItem(LS_INPUT_SRC, currentInputMode); } catch (_) { }
+
+    const btnManual = document.getElementById('btn-mode-manual');
+    const btnAuto = document.getElementById('btn-mode-auto');
+    const cardAuto = document.getElementById('fb-live-card');
+    const cardInput = document.getElementById('van-input-card');
+
+    if (btnManual) btnManual.classList.toggle('active', currentInputMode === 'manual');
+    if (btnAuto) btnAuto.classList.toggle('active', currentInputMode === 'auto');
+
+    if (cardInput) cardInput.style.display = currentInputMode === 'manual' ? '' : 'none';
+    if (cardAuto) cardAuto.style.display = currentInputMode === 'auto' ? '' : 'none';
+}
+
 // ══════════════════════════════════════════════════════════════
 // DARK MODE
 // ══════════════════════════════════════════════════════════════
@@ -349,16 +385,18 @@ function setPlayers(n) {
 
 function renderNames() {
     const el = document.getElementById('player-names');
-    const presetOptions = playerPresets.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
-    el.innerHTML = '<datalist id="name-presets">' + presetOptions + '</datalist>';
+    if (!el) return;
+    const presetOptions = playerPresets.map(n => `<option value="${escapeHtml(n)}">`).join('');
+    let html = '<datalist id="name-presets">' + presetOptions + '</datalist>';
     for (let i = 0; i < numP; i++) {
         const v = pnames[i] || ('Người ' + (i + 1));
-        el.innerHTML += `<div class="pname-wrap">
-      <input type="text" id="pn${i}" value="${v}" list="name-presets"
+        html += `<div class="pname-wrap">
+      <input type="text" id="pn${i}" value="${escapeHtml(v)}" list="name-presets"
         onchange="pnames[${i}]=this.value;save();renderXamPickers();renderGrid();"
         placeholder="Nhập tên ${i + 1}">
     </div>`;
     }
+    el.innerHTML = html;
 }
 
 function getNames() {
@@ -369,6 +407,7 @@ function getNames() {
 function renderGrid(reset = false) {
     const names = getNames();
     const g = document.getElementById('van-grid');
+    if (!g) return;
     const prevVals = reset
         ? Array(numP).fill('')
         : Array.from({ length: numP }, (_, i) => document.getElementById('c' + i)?.value ?? '');
@@ -391,7 +430,7 @@ function renderGrid(reset = false) {
         ? (tiedIdxs.length === 1 ? tiedIdxs[0] : (tiedIdxs.includes(selWin) ? selWin : -1))
         : -1;
 
-    g.innerHTML = '';
+    let cardsHtml = '';
     for (let i = 0; i < numP; i++) {
         const absent = isAbs(i);
         const isChaybai = !absent && rules.chayOn && selChay.includes(i);
@@ -410,7 +449,7 @@ function renderGrid(reset = false) {
         } else if (isChaybai) {
             body = `<button class="chay-badge chay-badge-btn" onclick="toggleChay(${i})" title="Bấm để bỏ cháy bài">⚡ Cháy bài <span style="font-size:12px;opacity:.7;">✕</span></button>${absentBtn}`;
         } else {
-            body = `<input type="number" id="c${i}" value="${prevVals[i]}" min="0" max="10" placeholder="nhập lá"
+            body = `<input type="number" id="c${i}" value="${prevVals[i]}" min="0" max="10" inputmode="numeric" pattern="[0-9]*" placeholder="nhập lá"
               oninput="this.classList.remove('input-error');this.value=this.value===''?'':(Math.min(10,Math.max(0,parseInt(this.value)||0)));updateCardState(${i},this.value)">
            <div class="input-hint">số lá còn lại (0–10)</div>
            ${isWin
@@ -419,11 +458,12 @@ function renderGrid(reset = false) {
                     ? `<button class="pick-win-btn" onclick="pickWin(${i})">🏆 Chọn thắng</button>`
                     : ''}${absentBtn}`;
         }
-        g.innerHTML += `<div class="${cardClass}" id="card${i}">
-      <div class="p-name">${names[i]}</div>
+        cardsHtml += `<div class="${cardClass}" id="card${i}">
+      <div class="p-name">${escapeHtml(names[i])}</div>
       ${body}
     </div>`;
     }
+    g.innerHTML = cardsHtml;
 }
 
 // Đánh dấu/bỏ đánh dấu một người vắng ở ván đang nhập (vắng = không chơi ván này, không tính điểm)
@@ -915,7 +955,7 @@ function renderHoaVon(names, tot) {
     }
     let html = '<div class="hoavon-title">🎯 Cần thắng để hòa vốn</div><div class="hoavon-grid">';
     for (let i = 0; i < numP; i++) {
-        const t = tot[i];
+        const t = roundScore(tot[i]);
         if (t >= 0) continue;
         const need = Math.abs(t);
         // Ước tính số ván cần thắng (giả định thắng trung bình = need / avg_win_per_van)
@@ -923,7 +963,7 @@ function renderHoaVon(names, tot) {
         const avgWin = wins.length ? wins.reduce((a, b) => a + b, 0) / wins.length : rules.la * 5;
         const vansEstimate = avgWin > 0 ? Math.ceil(need / avgWin) : '?';
         html += `<div class="hoavon-item">
-            <span class="hoavon-name">${names[i]}</span>
+            <span class="hoavon-name">${escapeHtml(names[i])}</span>
             <span class="hoavon-need neg">-${need}đ</span>
             <span class="hoavon-arrow">→</span>
             <span class="hoavon-est">~${vansEstimate} ván</span>
@@ -1025,77 +1065,83 @@ function renderBoard() {
 
     // Scoreboard
     const sb = document.getElementById('scoreboard');
-    sb.innerHTML = `<div class="sb-head"><span>#</span><span>Tên</span><span style="text-align:right">Điểm</span></div>`;
-    order.forEach((pi, rank) => {
-        const t = tot[pi];
-        sb.innerHTML += `<div class="sb-row${rank === 0 ? ' leader' : ''}">
-      <span class="sb-rank">${['🥇', '🥈', '🥉'][rank] || '#' + (rank + 1)}</span>
-      <span class="sb-name">${names[pi]}</span>
-      <span class="sb-pts ${t >= 0 ? 'pos' : 'neg'}">${t > 0 ? '+' : ''}${t}</span>
-    </div>`;
-    });
+    if (sb) {
+        let sbHtml = `<div class="sb-head"><span>#</span><span>Tên</span><span style="text-align:right">Điểm</span></div>`;
+        order.forEach((pi, rank) => {
+            const t = roundScore(tot[pi]);
+            sbHtml += `<div class="sb-row${rank === 0 ? ' leader' : ''}">
+          <span class="sb-rank">${['🥇', '🥈', '🥉'][rank] || '#' + (rank + 1)}</span>
+          <span class="sb-name">${escapeHtml(names[pi])}</span>
+          <span class="sb-pts ${t >= 0 ? 'pos' : 'neg'}">${t > 0 ? '+' : ''}${t}</span>
+        </div>`;
+        });
+        sb.innerHTML = sbHtml;
+    }
 
     // History table
     const ht = document.getElementById('hist-table');
-    let th = `<tr><th>Ván</th><th>Giờ</th>`;
-    names.forEach(n => th += `<th>${n}</th>`);
-    th += `<th>📝</th><th></th></tr>`;
+    if (ht) {
+        let th = `<tr><th>Ván</th><th>Giờ</th>`;
+        names.forEach(n => th += `<th>${escapeHtml(n)}</th>`);
+        th += `<th>📝</th><th></th></tr>`;
 
-    let rows = '';
-    history.forEach((v, vi) => {
-        const isLast = vi === history.length - 1;
-        let tr = `<tr${isLast ? ' class="new-row"' : ''}>
-      <td style="color:var(--muted);font-weight:700;font-size:11px;">${v.mode === 'xam' ? '🎯 ' : ''}V${vi + 1}</td>
-      <td style="color:var(--muted);font-size:11px;white-space:nowrap;">${v.ts || ''}</td>`;
+        let rows = '';
+        history.forEach((v, vi) => {
+            const isLast = vi === history.length - 1;
+            let tr = `<tr${isLast ? ' class="new-row"' : ''}>
+          <td style="color:var(--muted);font-weight:700;font-size:11px;">${v.mode === 'xam' ? '🎯 ' : ''}V${vi + 1}</td>
+          <td style="color:var(--muted);font-size:11px;white-space:nowrap;">${v.ts || ''}</td>`;
 
-        for (let i = 0; i < numP; i++) {
-            if (v.absent && v.absent.includes(i)) {
-                tr += `<td><div class="score-cell"><span class="score-main" style="color:var(--muted);font-weight:500;font-size:12px;">😴 vắng</span></div></td>`;
-                continue;
+            for (let i = 0; i < numP; i++) {
+                if (v.absent && v.absent.includes(i)) {
+                    tr += `<td><div class="score-cell"><span class="score-main" style="color:var(--muted);font-weight:500;font-size:12px;">😴 vắng</span></div></td>`;
+                    continue;
+                }
+                const s = roundScore(v.scores[i]);
+                const scLa = v.scLa ? roundScore(v.scLa[i]) : null;
+                const tagList = v.tags[i] || [];
+                let badges = tagList.map(tObj => {
+                    const tag = typeof tObj === 'string' ? tObj : tObj.tag;
+                    const delta = typeof tObj === 'string' ? null : tObj.delta;
+                    const lbl = TLBL[tag] || tag;
+                    const cls = TMAP[tag] || 'bx';
+                    const deltaStr = delta !== null ? ` (${fmtDelta(roundScore(delta))})` : '';
+                    return `<span class="badge ${cls}">${lbl}${deltaStr}</span>`;
+                }).join('');
+                let laStr = '';
+                const nCards = v.cards ? v.cards[i] : null;
+                if (nCards !== null && nCards !== undefined)
+                    laStr = `<span class="badge ${nCards === 0 ? 'bq' : 'bx'}">🃏 ${nCards} lá</span>`;
+                else if (scLa !== null && scLa !== 0) // ván cũ chưa lưu số lá
+                    laStr = `<span class="badge ${scLa > 0 ? 'bq' : 'bc'}">Lá ${fmtDelta(scLa)}</span>`;
+                tr += `<td>
+            <div class="score-cell">
+              <span class="score-main ${s >= 0 ? 'pos' : 'neg'}">${s > 0 ? '+' : ''}${s}</span>
+              <div class="score-breakdown">${laStr}${badges}</div>
+            </div>
+          </td>`;
             }
-            const s = v.scores[i];
-            const scLa = v.scLa ? v.scLa[i] : null;
-            const tagList = v.tags[i] || [];
-            let badges = tagList.map(tObj => {
-                const tag = typeof tObj === 'string' ? tObj : tObj.tag;
-                const delta = typeof tObj === 'string' ? null : tObj.delta;
-                const lbl = TLBL[tag] || tag;
-                const cls = TMAP[tag] || 'bx';
-                const deltaStr = delta !== null ? ` (${fmtDelta(delta)})` : '';
-                return `<span class="badge ${cls}">${lbl}${deltaStr}</span>`;
-            }).join('');
-            let laStr = '';
-            const nCards = v.cards ? v.cards[i] : null;
-            if (nCards !== null && nCards !== undefined)
-                laStr = `<span class="badge ${nCards === 0 ? 'bq' : 'bx'}">🃏 ${nCards} lá</span>`;
-            else if (scLa !== null && scLa !== 0) // ván cũ chưa lưu số lá
-                laStr = `<span class="badge ${scLa > 0 ? 'bq' : 'bc'}">Lá ${fmtDelta(scLa)}</span>`;
+            const noteText = vanNotes[vi] || '';
             tr += `<td>
-        <div class="score-cell">
-          <span class="score-main ${s >= 0 ? 'pos' : 'neg'}">${s > 0 ? '+' : ''}${s}</span>
-          <div class="score-breakdown">${laStr}${badges}</div>
-        </div>
-      </td>`;
-        }
-        tr += `<td>
-          <div class="van-note-cell">
-            <button class="note-btn${vanNotes[vi] ? ' has-note' : ''}" onclick="editVanNote(${vi})" title="${vanNotes[vi] ? vanNotes[vi] : 'Thêm ghi chú'}">
-              ${vanNotes[vi] ? '📝' : '✏️'}
-            </button>
-            ${vanNotes[vi] ? `<span class="note-preview">${vanNotes[vi].substring(0, 30)}${vanNotes[vi].length > 30 ? '…' : ''}</span>` : ''}
-          </div>
-        </td>`;
-        tr += `<td><button class="del-btn" onclick="delVan(${vi})">🗑</button></td></tr>`;
-        rows += tr;
-    });
+              <div class="van-note-cell">
+                <button class="note-btn${noteText ? ' has-note' : ''}" onclick="editVanNote(${vi})" title="${noteText ? escapeHtml(noteText) : 'Thêm ghi chú'}">
+                  ${noteText ? '📝' : '✏️'}
+                </button>
+                ${noteText ? `<span class="note-preview">${escapeHtml(noteText.substring(0, 30))}${noteText.length > 30 ? '…' : ''}</span>` : ''}
+              </div>
+            </td>`;
+            tr += `<td><button class="del-btn" onclick="delVan(${vi})">🗑</button></td></tr>`;
+            rows += tr;
+        });
 
-    let totRow = `<tr class="tot-row"><td>Tổng</td><td></td>`;
-    for (let i = 0; i < numP; i++) {
-        const t = tot[i];
-        totRow += `<td class="${t >= 0 ? 'pos' : 'neg'}">${t > 0 ? '+' : ''}${t}</td>`;
+        let totRow = `<tr class="tot-row"><td>Tổng</td><td></td>`;
+        for (let i = 0; i < numP; i++) {
+            const t = roundScore(tot[i]);
+            totRow += `<td class="${t >= 0 ? 'pos' : 'neg'}">${t > 0 ? '+' : ''}${t}</td>`;
+        }
+        totRow += `<td></td><td></td></tr>`;
+        ht.innerHTML = th + rows + totRow;
     }
-    totRow += `<td></td><td></td></tr>`;
-    ht.innerHTML = th + rows + totRow;
 
     // Extra panels
     renderHoaVon(names, tot);
@@ -1466,11 +1512,12 @@ function renderSettlement(names, tot) {
     <div class="settlement-title">💰 Thanh toán cuối buổi</div>
     <div class="settlement-list">`;
     txns.forEach(t => {
-        const display = Number.isInteger(t.amount) ? t.amount : t.amount.toFixed(1).replace(/\.0$/, '');
+        const amt = roundScore(t.amount);
+        const display = Number.isInteger(amt) ? amt : amt.toFixed(1).replace(/\.0$/, '');
         html += `<div class="settlement-row">
-      <span class="sett-from">${names[t.from]}</span>
+      <span class="sett-from">${escapeHtml(names[t.from])}</span>
       <span class="sett-arrow">→</span>
-      <span class="sett-to">${names[t.to]}</span>
+      <span class="sett-to">${escapeHtml(names[t.to])}</span>
       <span class="sett-amt">${display}đ</span>
     </div>`;
     });
@@ -2164,7 +2211,8 @@ function initKeyboardShortcuts() {
 
         const gamePage = document.getElementById('page-game');
         if (!gamePage || !gamePage.classList.contains('show')) return;
-        return; // Chế độ tự động: ván do extension gửi sang, không còn nhập tay (Enter / 1-9 bị vô hiệu)
+        const inputCard = document.getElementById('van-input-card');
+        if (!inputCard || inputCard.style.display === 'none') return;
 
         // Enter = thêm ván (chỉ khi không có modal đang mở)
         if (e.key === 'Enter') {
@@ -2218,6 +2266,10 @@ function initKeyboardShortcuts() {
     renderNames();
     renderGrid();
     renderXamPickers();
+
+    // Khởi tạo chế độ nhập (thủ công / extension)
+    const savedInputMode = localStorage.getItem(LS_INPUT_SRC) || 'manual';
+    setInputMode(savedInputMode);
     if (history.length) {
         renderBoard();
         document.getElementById('board-wrap').style.display = 'block';

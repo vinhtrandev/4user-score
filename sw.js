@@ -2,7 +2,7 @@
    sw.js — Sâm Lốc · Service Worker (offline support)
 ══════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'xamloc-v13';
+const CACHE_NAME = 'xamloc-v14';
 const APP_SHELL = [
     './',
     './index.html',
